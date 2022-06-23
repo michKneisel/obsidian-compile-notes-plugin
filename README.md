@@ -1,9 +1,33 @@
-# Obsidian Sample Plugin
+# Compile Notes Plugin
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+This plugin assists with longform writing. You can convert multiple notes by linking to them in another file and then using the plugins Compile Notes command to export them to a single file.
 
-This project uses Typescript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in Typescript Definition format, which contains TSDoc comments describing what it does.
+## How it works
+The plugin will analyse the text of the current note you are in when you call the command *Compile Notes*. It will pick up the wiki links of the notes you have added to this note. Find the markdown file in the folder and read it's content into the file you have designated (the default is "Manifest.md). 
+```
+[[Note 1]]
+[[Note 2]]
+
+```
+This will produce a file with only the contents of current file and the contents of the notes the links pointed to. If you include headings and other content, in amongst your links, they will be preserved.
+
+## Settings
+### Folder
+You can create or let the plugin create the folder you would like your compiled notes to be stored. Default: \Manifest
+### Filename
+Specify the name of the file you would like the compiled notes note to be called. Default: Manifest.md
+### Overwrite Existing File
+When turned on, the file will be trashed to the system recycle bin. 
+NOTE: currently your saved compile notes file will always be overwritten.
+### Do not show links
+When turned on, your saved compile notes file will not contain any of the links. This setting assumes that you have a newline (\\n) after your link. If you do not, your link will not be removed. If you want to remove links, ensure you have a newline after each link, such as the example above. Currently if have other links in your document that are in other folders or do not exist yet, if you want preserve them, you need to toggle this setting off. It will remove all wiki links in the compiled note.
+
+**Note:**
+- Only supports wiki links.
+- All notes need to be in the *same* folder - any folder, it does not have to be a root folder.
+- Currently all previous "compiled note files" (Manifest.md) will be moved to the system trash and a new file with the same name, as specified in the settings will be created.
+- it features 2 levels of notes. Therefore you can have your main note, which has a list of links to other notes. These notes can have links to other notes and both levels will be pulled into your Manifest.md. If the 2nd levels have links to other notes, these will be left as is and not replaced with their content.
+
 
 **Note:** The Obsidian API is still in early alpha and is subject to change at any time!
 
