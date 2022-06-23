@@ -39,6 +39,7 @@ export default class CompileNotes extends Plugin {
 							const noteFile = this.app.workspace.getActiveFile();
 
 							let text = await this.app.vault.read(noteFile);
+							console.log("test = "+text)
 							let compiledContent = "";
 							await this.extractContentFromLinks(text).then(
 								text => compiledContent = text
@@ -151,6 +152,7 @@ export default class CompileNotes extends Plugin {
 	}
 
 	async extractContentFromLinks(textToScan: string): Promise<string> {
+		console.log("textToScan "+textToScan)
 		const regexWikiGlobal = /\[\[([^\]]*)\]\]/g
 		let wikiMatches = textToScan.match(regexWikiGlobal)
 		let compiledContent = "";
