@@ -20,6 +20,7 @@ interface CompileNotesSettings {
 	compileToFilename: string;
 	overwriteExistingFile: boolean;
 	removeLinks: boolean;
+	notesFolder: string;
 }
 
 const DEFAULT_SETTINGS: CompileNotesSettings = {
@@ -27,64 +28,8 @@ const DEFAULT_SETTINGS: CompileNotesSettings = {
 	compileToFilename: "Manuscript.md",
 	overwriteExistingFile: true,
 	removeLinks: true,
+	notesFolder: "notes"
 };
-
-interface NestedObject {
-	name: string;
-	value: number;
-	children?: NestedObject[];
-}
-
-const nestedObjects: NestedObject[] = [
-	{
-		name: "First Parent",
-		value: 100,
-		children: [
-			{
-				name: "First Child",
-				value: 110,
-			},
-			{
-				name: "Second Child",
-				value: 120,
-				children: [
-					{
-						name: "First Grandchild",
-						value: 121,
-					},
-					{
-						name: "Second Grandchild",
-						value: 122,
-					},
-				],
-			},
-		],
-	},
-	{
-		name: "Second Parent",
-		value: 200,
-		children: [
-			{
-				name: "First Child",
-				value: 210,
-			},
-			{
-				name: "Second Child",
-				value: 220,
-			},
-			{
-				name: "Third Child",
-				value: 230,
-				children: [
-					{
-						name: "First Grandchild",
-						value: 231,
-					},
-				],
-			},
-		],
-	},
-];
 
 export default class CompileNotes extends Plugin {
 	settings: CompileNotesSettings;
@@ -102,7 +47,8 @@ export default class CompileNotes extends Plugin {
 			const regexWiki = /\[\[([^\]]+)\]\]/;
 			let linkText = noteLink.match(regexWiki)[1];
 			let linkFilename = linkText + ".md";
-			return path.join(rootNotePath, linkFilename);
+			let notesFolder = this.settings.notesFolder;
+			return path.join(rootNotePath, notesFolder, linkFilename);
 		};
 		const getRootNoteText = () => {
 			const rootNoteFile = this.app.workspace.getActiveFile();
@@ -142,6 +88,10 @@ export default class CompileNotes extends Plugin {
 						for (const childItem of childLinkMatches) {
 							try {
 							console.log("childItem = " + childItem);
+							loadedText = await replaceLinkWithContent(
+								childItem,
+								loadedText
+							);
 							let fullLinkFilename = getNoteFileName(childItem);
 
 							let linkedNoteText =
@@ -157,21 +107,7 @@ export default class CompileNotes extends Plugin {
 								if(level3Matches) {
 									for (const level3Item of level3Matches) {
 										try{
-											console.log(
-												"level3Item = " + level3Item
-											);
-											let fullLinkFilename =
-												getNoteFileName(level3Item);
-
-											let linkedNoteText =
-												await this.app.vault.adapter.read(
-													fullLinkFilename
-												);
-											loadedText = loadedText.replace(
-												level3Item,
-												linkedNoteText
-											);
-
+											loadedText = await replaceLinkWithContent(level3Item, loadedText)
 										} catch(e) {
 
 										}
@@ -195,6 +131,19 @@ export default class CompileNotes extends Plugin {
 		this.addCommand({
 			id: "compile-notes-testing",
 			name: "Compile notes testing",
+			checkCallback: (checking: boolean) => {
+				// Conditions to check
+				const markdownView =
+					this.app.workspace.getActiveViewOfType(MarkdownView);
+				if (markdownView) {
+					
+				}
+			},
+		});
+
+		this.addCommand({
+			id: "compile-notes-into-one",
+			name: "Compile notes to one file",
 			checkCallback: (checking: boolean) => {
 				// Conditions to check
 				const markdownView =
@@ -240,56 +189,6 @@ export default class CompileNotes extends Plugin {
 						});
 					}
 					console.log("all done");
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
-				}
-			},
-		});
-
-		this.addCommand({
-			id: "compile-notes-into-one",
-			name: "Compile notes to one file",
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView =
-					this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					if (!checking) {
-						// console.log("in checking");
-						// const currentNote = async (): Promise<String> => {
-						// 	const noteFile = this.app.workspace.getActiveFile();
-						// 	// set totatText to ""
-						// 	// get content of currentNote/originating note
-						// 	// extract the text from current note
-						// 	// get path of the current note
-						// 	// add text of current note to totalText
-						// 	// scan text of current file for links
-						// 	// if has linkMatches
-						// 	// loop through linkMatches
-						// 	// on each item of loop - extract the text from current note
-						// 	// get path of current note
-						// 	// add text of current note to totalText
-						// 	// scan text of current file for links
-						// 	// if has linkMatches -> loop through linkMatches
-						// 	let text = await this.app.vault.read(noteFile);
-						// 	console.log("test = " + text);
-						// 	let compiledContent = "";
-						// 	console.log("path " + noteFile.parent.path);
-						// 	await this.extractContentFromLinks(
-						// 		text,
-						// 		noteFile.parent.path
-						// 	).then((text) => (compiledContent = text));
-						// 	if (this.settings.removeLinks) {
-						// 		await this.removeAllLinks(compiledContent).then(
-						// 			(content) => (compiledContent = content)
-						// 		);
-						// 	}
-						// 	await this.createNewNote(compiledContent);
-						// 	return text;
-						// };
-						// currentNote().then();
-					}
-
 					// This command will only show up in Command Palette when the check function returns true
 					return true;
 				}
@@ -375,54 +274,6 @@ export default class CompileNotes extends Plugin {
 		const regexWikiGlobal = /\[\[([^\]]*)\]\]/g;
 		return textToScan.replace(regexWikiGlobal, "");
 	}
-
-	async extractContentFromLinks(
-		textToScan: string,
-		path: string
-	): Promise<string> {
-		console.log("textToScan " + textToScan);
-		const regexWikiGlobal = /\[\[([^\]]*)\]\]/g;
-		let wikiMatches = textToScan.match(regexWikiGlobal);
-		let compiledContent = "";
-		let secondLevelWikiMatches;
-		if (wikiMatches) {
-			console.log("has wikiMatches");
-			for (const item of wikiMatches) {
-				const regexWiki = /\[\[([^\]]+)\]\]/;
-				let linkText = item.match(regexWiki)[1];
-				try {
-					let fileToREad = "\\" + path + "\\" + linkText + ".md";
-					let file = await this.app.vault.adapter.read(fileToREad);
-					compiledContent += file + "\n";
-					console.log("compiledContent = " + compiledContent);
-					// recursive 2nd level
-					secondLevelWikiMatches = file.match(regexWikiGlobal);
-					console.log(
-						"secondLevelWikiMathches " +
-							secondLevelWikiMatches.length
-					);
-					if (secondLevelWikiMatches) {
-						let secondLevelText = "";
-						for (const secondItem of secondLevelWikiMatches) {
-							console.log(
-								"secondItem " + secondItem.match(regexWiki)[1]
-							);
-							this.extractContentFromLinks(
-								secondItem.match(regexWiki)[1],
-								path
-							).then((content) => (secondLevelText += content));
-						}
-						compiledContent += secondLevelText;
-					}
-				} catch (e) {
-					// do nothing carry on
-					console.log("cant find the file " + e);
-				}
-			}
-		}
-
-		return compiledContent;
-	}
 }
 
 class SampleModal extends Modal {
@@ -481,6 +332,20 @@ class SampleSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					})
 			);
+
+			new Setting(containerEl)
+				.setName("Notes Folder")
+				.setDesc("Sub folder that holds the notes (do not put folder separator \|/)")
+				.addText((text) =>
+					text
+						.setPlaceholder("Notes folder")
+						.setValue(this.plugin.settings.notesFolder)
+						.onChange(async (value) => {
+							this.plugin.settings.notesFolder = value;
+							await this.plugin.saveSettings();
+						})
+				);
+
 
 		new Setting(containerEl)
 			.setName("Overwrite existing file")
