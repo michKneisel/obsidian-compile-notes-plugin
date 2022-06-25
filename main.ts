@@ -109,6 +109,15 @@ export default class CompileNotes extends Plugin {
 			rootNotePath = rootNoteFile.parent.path;
 			return this.app.vault.read(rootNoteFile);
 		};
+		const replaceLinkWithContent = async (link: string, parentContent: string ) => {
+			console.log("level3Item = " + link);
+			let fullLinkFilename = getNoteFileName(link);
+
+			let linkedNoteText = await this.app.vault.adapter.read(
+				fullLinkFilename
+			);
+			return parentContent.replace(link, linkedNoteText);
+		}
 		const loadNotes = async (
 			linkMatches: RegExpMatchArray,
 			parentNoteText: string
@@ -116,30 +125,63 @@ export default class CompileNotes extends Plugin {
 			let loadedText = parentNoteText;
 			for (const item of linkMatches) {
 				try {
-					// console.log("item = " + item);
-					// on each item of loop - extract the text from current note
-					// read file of first linkMatch
+					console.log("item = " + item);
 					let fullLinkFilename = getNoteFileName(item);
-					// console.log("filename = " + fullLinkFilename)
+
 					let linkedNoteText = await this.app.vault.adapter.read(
 						fullLinkFilename
 					);
-					// console.log("linkedNoteText = " + linkedNoteText);
-					// add text of current note to totalText
-					let concatedNotes = "".concat(loadedText, linkedNoteText);
-					loadedText = concatedNotes;
+
+					loadedText = loadedText.replace(item, linkedNoteText);
 					// scan text of current file for links
 					let childLinkMatches =
 						linkedNoteText.match(regexWikiGlobal);
 					// if has linkMatches -> loop through linkMatches
 					if (childLinkMatches) {
 						// loop through linkMatches
-						let newNotes = await loadNotes(
-							childLinkMatches,
-							linkedNoteText
-						);
-						let concatedNotes = "".concat(loadedText, newNotes);
-						loadedText = concatedNotes;
+						for (const childItem of childLinkMatches) {
+							try {
+							console.log("childItem = " + childItem);
+							let fullLinkFilename = getNoteFileName(childItem);
+
+							let linkedNoteText =
+								await this.app.vault.adapter.read(
+									fullLinkFilename
+								);
+							loadedText = loadedText.replace(
+								childItem,
+								linkedNoteText
+							);
+							let level3Matches =
+								linkedNoteText.match(regexWikiGlobal);
+								if(level3Matches) {
+									for (const level3Item of level3Matches) {
+										try{
+											console.log(
+												"level3Item = " + level3Item
+											);
+											let fullLinkFilename =
+												getNoteFileName(level3Item);
+
+											let linkedNoteText =
+												await this.app.vault.adapter.read(
+													fullLinkFilename
+												);
+											loadedText = loadedText.replace(
+												level3Item,
+												linkedNoteText
+											);
+
+										} catch(e) {
+
+										}
+									}
+								}
+							} catch(e) {
+								console.log("missing file: " + e);
+							}
+						}
+					
 					} else {
 						console.log("no links in " + fullLinkFilename);
 					}
@@ -185,13 +227,15 @@ export default class CompileNotes extends Plugin {
 							// remove all links
 							let manuscript = "";
 							if (this.settings.removeLinks) {
-								console.log("removelinks")
-								manuscript = this.removeAllLinks(notesToSave)
+								console.log("removelinks");
+								manuscript = this.removeAllLinks(notesToSave);
 							} else {
-								manuscript = notesToSave
+								manuscript = notesToSave;
 							}
 							// write to manuscript
-							console.log("Notes to save to manuscript "+manuscript)
+							console.log(
+								"Notes to save to manuscript " + manuscript
+							);
 							this.createNewNote(manuscript);
 						});
 					}
@@ -214,7 +258,6 @@ export default class CompileNotes extends Plugin {
 						// console.log("in checking");
 						// const currentNote = async (): Promise<String> => {
 						// 	const noteFile = this.app.workspace.getActiveFile();
-
 						// 	// set totatText to ""
 						// 	// get content of currentNote/originating note
 						// 	// extract the text from current note
@@ -228,24 +271,20 @@ export default class CompileNotes extends Plugin {
 						// 	// add text of current note to totalText
 						// 	// scan text of current file for links
 						// 	// if has linkMatches -> loop through linkMatches
-
 						// 	let text = await this.app.vault.read(noteFile);
 						// 	console.log("test = " + text);
 						// 	let compiledContent = "";
-
 						// 	console.log("path " + noteFile.parent.path);
 						// 	await this.extractContentFromLinks(
 						// 		text,
 						// 		noteFile.parent.path
 						// 	).then((text) => (compiledContent = text));
-
 						// 	if (this.settings.removeLinks) {
 						// 		await this.removeAllLinks(compiledContent).then(
 						// 			(content) => (compiledContent = content)
 						// 		);
 						// 	}
 						// 	await this.createNewNote(compiledContent);
-
 						// 	return text;
 						// };
 						// currentNote().then();
@@ -334,7 +373,7 @@ export default class CompileNotes extends Plugin {
 
 	removeAllLinks(textToScan: string): string {
 		const regexWikiGlobal = /\[\[([^\]]*)\]\]/g;
-		return textToScan.replace(regexWikiGlobal, '')
+		return textToScan.replace(regexWikiGlobal, "");
 	}
 
 	async extractContentFromLinks(
