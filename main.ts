@@ -28,7 +28,7 @@ const DEFAULT_SETTINGS: CompileNotesSettings = {
 	compileToFilename: "Manuscript.md",
 	overwriteExistingFile: true,
 	removeLinks: true,
-	notesFolder: "notes"
+	notesFolder: "notes",
 };
 
 export default class CompileNotes extends Plugin {
@@ -55,7 +55,10 @@ export default class CompileNotes extends Plugin {
 			rootNotePath = rootNoteFile.parent.path;
 			return this.app.vault.read(rootNoteFile);
 		};
-		const replaceLinkWithContent = async (link: string, parentContent: string ) => {
+		const replaceLinkWithContent = async (
+			link: string,
+			parentContent: string
+		) => {
 			console.log("level3Item = " + link);
 			let fullLinkFilename = getNoteFileName(link);
 
@@ -63,7 +66,7 @@ export default class CompileNotes extends Plugin {
 				fullLinkFilename
 			);
 			return parentContent.replace(link, linkedNoteText);
-		}
+		};
 		const loadNotes = async (
 			linkMatches: RegExpMatchArray,
 			parentNoteText: string
@@ -87,37 +90,39 @@ export default class CompileNotes extends Plugin {
 						// loop through linkMatches
 						for (const childItem of childLinkMatches) {
 							try {
-							console.log("childItem = " + childItem);
-							loadedText = await replaceLinkWithContent(
-								childItem,
-								loadedText
-							);
-							let fullLinkFilename = getNoteFileName(childItem);
-
-							let linkedNoteText =
-								await this.app.vault.adapter.read(
-									fullLinkFilename
+								console.log("childItem = " + childItem);
+								loadedText = await replaceLinkWithContent(
+									childItem,
+									loadedText
 								);
-							loadedText = loadedText.replace(
-								childItem,
-								linkedNoteText
-							);
-							let level3Matches =
-								linkedNoteText.match(regexWikiGlobal);
-								if(level3Matches) {
-									for (const level3Item of level3Matches) {
-										try{
-											loadedText = await replaceLinkWithContent(level3Item, loadedText)
-										} catch(e) {
+								let fullLinkFilename =
+									getNoteFileName(childItem);
 
-										}
+								let linkedNoteText =
+									await this.app.vault.adapter.read(
+										fullLinkFilename
+									);
+								loadedText = loadedText.replace(
+									childItem,
+									linkedNoteText
+								);
+								let level3Matches =
+									linkedNoteText.match(regexWikiGlobal);
+								if (level3Matches) {
+									for (const level3Item of level3Matches) {
+										try {
+											loadedText =
+												await replaceLinkWithContent(
+													level3Item,
+													loadedText
+												);
+										} catch (e) {}
 									}
 								}
-							} catch(e) {
+							} catch (e) {
 								console.log("missing file: " + e);
 							}
 						}
-					
 					} else {
 						console.log("no links in " + fullLinkFilename);
 					}
@@ -136,7 +141,42 @@ export default class CompileNotes extends Plugin {
 				const markdownView =
 					this.app.workspace.getActiveViewOfType(MarkdownView);
 				if (markdownView) {
-					
+					if (!checking) {
+						const noteFile = this.app.workspace.getActiveFile();
+						let cachedMedataData =
+							this.app.metadataCache.getFileCache(noteFile);
+						console.log(
+							"cachedMetaData links = " + cachedMedataData.links.length
+						);
+		
+						cachedMedataData.links.forEach((element) => {
+							console.log("each link displayText" + element.displayText);
+							console.log("each link link" + element.link);
+							console.log("each link position.start" + element.position.start);
+							console.log(
+								"each link position.end" + element.position.end
+							);
+	
+						});
+
+						console.log(
+							"cachedMetaData embeds = " + cachedMedataData.embeds.length
+						);
+						cachedMedataData.embeds.forEach((element) => {
+							console.log(
+								"each embed displayText" + element.displayText
+							);
+							console.log("each embed link" + element.link);
+							console.log(
+								"each embed position.start" + element.position.start.line
+							);
+							console.log(
+								"each embed position.end" +
+									element.position.end.line
+							);
+						});
+					}
+					return true;
 				}
 			},
 		});
@@ -333,19 +373,20 @@ class SampleSettingTab extends PluginSettingTab {
 					})
 			);
 
-			new Setting(containerEl)
-				.setName("Notes Folder")
-				.setDesc("Sub folder that holds the notes (do not put folder separator \|/)")
-				.addText((text) =>
-					text
-						.setPlaceholder("Notes folder")
-						.setValue(this.plugin.settings.notesFolder)
-						.onChange(async (value) => {
-							this.plugin.settings.notesFolder = value;
-							await this.plugin.saveSettings();
-						})
-				);
-
+		new Setting(containerEl)
+			.setName("Notes Folder")
+			.setDesc(
+				"Sub folder that holds the notes (do not put folder separator |/)"
+			)
+			.addText((text) =>
+				text
+					.setPlaceholder("Notes folder")
+					.setValue(this.plugin.settings.notesFolder)
+					.onChange(async (value) => {
+						this.plugin.settings.notesFolder = value;
+						await this.plugin.saveSettings();
+					})
+			);
 
 		new Setting(containerEl)
 			.setName("Overwrite existing file")
