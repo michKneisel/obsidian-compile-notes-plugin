@@ -9,6 +9,8 @@ import {
 	PluginSettingTab,
 	Setting,
 	TFile,
+	LinkCache,
+	EmbedCache,
 } from "obsidian";
 import * as path from "path";
 import { text } from "stream/consumers";
@@ -136,10 +138,82 @@ export default class CompileNotes extends Plugin {
 				const markdownView =
 					this.app.workspace.getActiveViewOfType(MarkdownView);
 				if (markdownView) {
-					
+					if (!checking) {
+						const complileNotes = async () => {
+							const sourceFile =
+								this.app.workspace.getActiveFile();
+							let metadataCache =
+								this.app.metadataCache.getFileCache(sourceFile);
+							let links = metadataCache.links;
+							let embeds = metadataCache.embeds;
+							let metaData = metadataCache.frontmatter
+							let sourceFileText = await this.app.vault.read(
+								sourceFile
+							);
+
+							if (links != null) {
+								findAndReplaceLinks(links, sourceFileText);
+							}
+							if (embeds != null) {
+								findAndReplaceEmbeds(embeds, sourceFileText);
+							}
+							console.log("sourceFile = " + sourceFileText);
+						};
+						complileNotes().then();
+					}
+					return true;
 				}
 			},
 		});
+
+		const findAndReplaceLinks = async (
+			links: LinkCache[],
+			sourceFileText: string
+		) => {
+			let vault = this.app.vault;
+			let metadataCache = this.app.metadataCache;
+			links.forEach(async (link) => {
+				let linkTextFile = vault.getAbstractFileByPath(
+					link.displayText + ".md"
+				);
+				let linkFileText = await vault.read(linkTextFile as TFile);
+				let linkFileLinks = metadataCache.getFileCache(
+					linkTextFile as TFile
+				).links;
+				sourceFileText = sourceFileText.replace(
+					link.original,
+					linkFileText
+				);
+				if (linkFileLinks != null) {
+					findAndReplaceLinks(linkFileLinks, linkFileText);
+				}
+			});
+			console.log("findAndReplaceLinks = "+sourceFileText)
+		};
+
+		const findAndReplaceEmbeds = async (
+			embeds: EmbedCache[],
+			sourceFileText: string
+		) => {
+			let vault = this.app.vault;
+			let metadataCache = this.app.metadataCache;
+			embeds.forEach(async (embed) => {
+				let embedTextFile = vault.getAbstractFileByPath(
+					embed.displayText + ".md"
+				);
+				let embedFileText = await vault.read(embedTextFile as TFile);
+				let embedFileLinks = metadataCache.getFileCache(
+					embedTextFile as TFile
+				).links;
+				sourceFileText = sourceFileText.replace(
+					embed.original,
+					embedFileText
+				);
+				if (embedFileLinks != null) {
+					findAndReplaceLinks(embedFileLinks, embedFileText);
+				}
+			});
+		};
 
 		this.addCommand({
 			id: "compile-notes-into-one",
