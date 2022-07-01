@@ -24,7 +24,8 @@ interface CompileNotesSettings {
 	compileToFilename: string;
 	overwriteExistingFile: boolean;
 	removeLinks: boolean;
-	notesFolder: string;
+	notesFolder: string,
+	removeFrontmatter: boolean;
 }
 
 const DEFAULT_SETTINGS: CompileNotesSettings = {
@@ -32,7 +33,8 @@ const DEFAULT_SETTINGS: CompileNotesSettings = {
 	compileToFilename: "Manuscript.md",
 	overwriteExistingFile: true,
 	removeLinks: true,
-	notesFolder: "notes"
+	notesFolder: "notes",
+	removeFrontmatter: true
 };
 
 export default class CompileNotes extends Plugin {
@@ -51,139 +53,203 @@ export default class CompileNotes extends Plugin {
 
 				if (markdownView) {
 					if (!checking) {
-						const sourceFile =
-							this.app.workspace.getActiveFile();
+						const sourceFile = this.app.workspace.getActiveFile();
+						const sourcFilePath = sourceFile.parent.path;
 						const vault = this.app.vault;
-						const app = this.app
-						const settings = this.settings
+						const app = this.app;
+						const settings = this.settings;
+						const fileAdapter = vault.adapter;
 
 						async function compileNotes() {
-							const links = await getLinks(sourceFile, true);
+							const links = await getLinks(sourceFile);
 
-							let contents = await getFileContent(sourceFile as TFile)
+							let contents = await getFileContent(
+								sourceFile as TFile
+							);
 
-							contents = await replaceLinkContent(links, contents)
-							saveToNewFile(contents).then()
-						}
-
-						async function createDirectory(dir: string): Promise<void> {
-
-							const { adapter } = vault;
-							const root = vault.getRoot().path;
-							const directoryPath = path.join(this.folder.path, dir);
-							const directoryExists = await adapter.exists(directoryPath);
-
-							if (!directoryExists) {
-								return adapter.mkdir(normalizePath(directoryPath));
-							}
-						}
-
-						async function createNewNote(input: string): Promise<void> {
-
-
-
-
-
-
-							// let folder = vault.getRoot();
-							// let newDirectoryPath = settings.compileToFolder;
-
-							// const { adapter } = vault;
-							// const filename = settings.compileToFilename;
-							// const filePath = path.join(newDirectoryPath, filename);
-
-							// try {
-							// 	console.log("filepath = "+normalizePath(filePath))
-							// 	const fileExists = await adapter.exists("Manuscript");
-							// 	if (fileExists) {
-							// 		console.log(filePath);
-							// 		let file = vault.getAbstractFileByPath(normalizePath(filePath));
-							// 		if (file instanceof TFile) {
-							// 			vault.trash(file, true);
-							// 			new Notice("File: " + filename + " has been trashed");
-							// 		} else {
-							// 			new Notice("can't find file");
-							// 		}
-							// 	}
-
-							// 	await createDirectory(newDirectoryPath);
-							// 	await vault.create(filePath, input);
-							// 	new Notice("New " + filename + " has been created");
-							// } catch (error) {
-							// 	new Notice(error.toString());
-							// }
+							contents = await replaceLinkContent(
+								links,
+								contents
+							);
+							saveToNewFile(contents).then();
 						}
 
 						async function saveToNewFile(contents: string) {
-							// save to manifest.md
-							console.log("***: " + contents)
-							// check if the directory exits
-							// check if the file !exists
-							// call createNewNote
+							// console.log("***: " + contents);
+							let directory = path.join(
+								vault.getRoot().path,
+								settings.compileToFolder
+							);
+							const directoryExists = await fileAdapter.exists(
+								normalizePath(directory)
+							);
 
-							// else move file to trash
-							// call createNewNote
+							if (!directoryExists) {
+								return fileAdapter.mkdir(
+									normalizePath(directory)
+								);
+							}
 
-							// else create directory
-							// call createNewNote
+							try {
+								const filename = settings.compileToFilename;
+								const filePath = path.join(directory, filename);
+								const fileExists = await fileAdapter.exists(
+									filePath
+								);
+								if (fileExists) {
+									console.log(filePath);
+									let file = vault.getAbstractFileByPath(
+										normalizePath(filePath)
+									);
+									if (file instanceof TFile) {
+										vault.trash(file, true);
+										new Notice(
+											"File: " +
+												filename +
+												" has been trashed"
+										);
+									} else {
+										new Notice("can't find file");
+									}
+								}
+
+								await vault.create(filePath, contents);
+								new Notice(
+									"New " + filename + " has been created"
+								);
+							} catch (error) {
+								new Notice(error.toString());
+							}
 						}
 
-						async function replaceLinkContent(links: ReferenceCache[], contents: string) {
+						async function getFileName(noteName: string) {
+							let fileName = noteName + ".md";
+							if (settings.notesFolder.length > 0) {
+								fileName = path.join(
+									sourcFilePath,
+									settings.notesFolder,
+									fileName
+								);
+							} else {
+								fileName = path.join(sourcFilePath, fileName);
+							}
+							return normalizePath(fileName);
+						}
+
+						async function replaceLinkContent(
+							links: ReferenceCache[],
+							contents: string
+						) {
 							for (const link of links) {
-								let linkFile = vault.getAbstractFileByPath(link.displayText + ".md")
-								let fileContent = await getFileContent(linkFile as TFile)
+								let fileName = await getFileName(
+									link.displayText
+								);
+
+								let linkFile =
+									vault.getAbstractFileByPath(fileName);
+				
+								let fileContent = await getFileContent(
+									linkFile as TFile
+								);
 								if (fileContent != null) {
-									contents = contents.replace(link.original, fileContent)
-									const childLinks = await getLinks(linkFile as TFile, true)
+									contents = contents.replace(
+										link.original,
+										fileContent
+									);
+									const childLinks = await getLinks(
+										linkFile as TFile
+									);
 
 									if (childLinks != null) {
-										contents = await replaceLinkContent(childLinks, contents)
+										contents = await replaceLinkContent(
+											childLinks,
+											contents
+										);
 									}
 								} else {
+									console.log(
+										"no file for this link " + link.original
+									);
 									if (settings.removeLinks) {
-										contents = contents.replace(link.original, "")
+										contents = contents.replace(
+											link.original,
+											""
+										);
 									}
 								}
 							}
-							return contents
+							return contents;
 						}
 
-						async function getLinks(file: TFile, linkCache: boolean) {
+						async function getLinks(file: TFile) {
 							// read either links or embeds and return
 							let metadataCache =
 								app.metadataCache.getFileCache(file);
-							let links = metadataCache.links
-							let embeds = metadataCache.embeds
+							let links = metadataCache.links;
+							let embeds = metadataCache.embeds;
 							if (links != null && embeds != null) {
-								return links.concat(embeds)
+								return links.concat(embeds);
 							} else {
 								if (links != null) {
-									return links
+									return links;
 								}
 								if (embeds != null) {
-									return embeds
+									return embeds;
 								}
 							}
 						}
 
-						async function getFileContent(file: TFile): Promise<string | null> {
+						function replaceAtIndex(
+							_string: string,
+							_index: number,
+							_indexEnd: number,
+							_newValue: string
+						) {
+							if (_index > _string.length - 1) {
+								return _string;
+							} else {
+								return (
+									_string.substring(0, _index) +
+									_newValue +
+									_string.substring(_indexEnd)
+								);
+							}
+						}
+
+						async function getFileContent(
+							file: TFile
+						): Promise<string | null> {
 							try {
 								// read from the file
 								let fileContent = await vault.read(file);
-								return fileContent
+								let frontmatterData = app.metadataCache.getFileCache(file).frontmatter
+								if(frontmatterData != null) {
+									let frontmatterStart =
+										frontmatterData.position.start.offset;
+										let frontmatterEnd =
+											frontmatterData.position.end.offset;
+									console.log("frontmatter "+frontmatterStart+" frontmatterEnd "+frontmatterEnd)
+									console.log(
+										"meta data = "+fileContent.substring(frontmatterStart, frontmatterEnd)
+									)
+									if (settings.removeFrontmatter) {
+										fileContent = replaceAtIndex(fileContent, frontmatterStart, frontmatterEnd, "")
+									}
+								}
+							
+								return fileContent;
 							} catch (e) {
-								return null
+								console.log("error in getFileContent "+e)
+								return null;
 							}
 						}
 
-						compileNotes()
+						compileNotes();
 					}
 					return true;
 				}
 			},
 		});
-
-
 
 		// This adds a settings tab so the user can configure various aspects of the plugin
 		this.addSettingTab(new SampleSettingTab(this.app, this));
@@ -195,7 +261,7 @@ export default class CompileNotes extends Plugin {
 		});
 	}
 
-	onunload() { }
+	onunload() {}
 
 	async loadSettings() {
 		this.settings = Object.assign(
@@ -269,7 +335,9 @@ class SampleSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Notes Folder")
-			.setDesc("Sub folder that holds the notes (do not put folder separator \|/)")
+			.setDesc(
+				"Sub folder that holds the notes (do not put folder separator |/)"
+			)
 			.addText((text) =>
 				text
 					.setPlaceholder("Notes folder")
@@ -280,13 +348,12 @@ class SampleSettingTab extends PluginSettingTab {
 					})
 			);
 
-
 		new Setting(containerEl)
 			.setName("Overwrite existing file")
 			.setDesc(
 				"When turned on, the file will be trashed to the system recycle bin. NOTE: currently your " +
-				this.plugin.settings.compileToFilename +
-				" will always be overwritten"
+					this.plugin.settings.compileToFilename +
+					" will always be overwritten"
 			)
 			.addToggle((toggle) =>
 				toggle
@@ -298,12 +365,12 @@ class SampleSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName("Do not show links")
+			.setName("Remove links")
 			.setDesc(
 				"When turned on, your " +
-				this.plugin.settings.compileToFilename +
-				" will not contain any of the links." +
-				"\nThis setting assumes that you have an end of line (\\n) after your link. If you do not, your link will not be removed."
+					this.plugin.settings.compileToFilename +
+					" will not contain any wiki links or transclude links." +
+					"It will remove any links that point to notes that have not been created yet."
 			)
 			.addToggle((toggle) =>
 				toggle
@@ -314,19 +381,20 @@ class SampleSettingTab extends PluginSettingTab {
 					})
 			);
 
-		// // 						if( !this.plugin.settings.overwriteExistingFile) {
-		// // 							new Setting(containerEl)
-		// //   .setName('Number of repetitions')
-		// //   .setDesc('Here you can set your default number for repetition reminders')
-		// //   .setValue(this.plugin.settings.repetitions) // <-- Add me!
-		// //   .addDropdown(dropDown => {
-		// //   	dropDown.addOption('1', '1 Repetition');
-		// //   	dropDown.addOption('2', '2 Repetitions');
-		// //   	dropDown.onChange(async (value) =>	{
-		// //   		this.plugin.settings.repetitions = value;
-		// //   		await this.plugin.saveSettings();
-		// //   	});
-		//   });
-		// }
+		new Setting(containerEl)
+			.setName("Remove Frontmatter / metadata")
+			.setDesc(
+				"When turned on, your " +
+					this.plugin.settings.compileToFilename +
+					" will not contain any yaml metadata or frontmatter."
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.removeFrontmatter)
+					.onChange((value) => {
+						this.plugin.settings.removeFrontmatter = value;
+						this.plugin.saveData(this.plugin.settings);
+					})
+			);
 	}
 }
