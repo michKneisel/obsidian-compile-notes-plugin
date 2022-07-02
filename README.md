@@ -23,8 +23,9 @@ When turned on, your saved compile notes file will not contain any of the links.
 When turned on, your saved compile notes file will not contain any frontmatter or yaml metadata, if you want to preserve it in your complied note, you need to toggle this setting off. 
 
 ## Manually installing the plugin
-Create a folder in your vault: VaultFolder/.obsidian/plugins/obsidian-compile-notes-plugin/
-Copy over main.js, manifest.json into that folder.
+On the panel on the right, you will see a section called Releases, click on latest, download the zip file: obsidian-compile-notes-plugin-[latestversionnumber].zip and extract it in 
+your vault: VaultFolder/.obsidian/plugins/ folder.
+it will add a folder:/obsidian-compile-notes-plugin/ with the files main.js, manifest.json into that folder.
 
 **Note:**
 - Only supports wiki links and transclude links - no markdown link support, they will remain in the document.
