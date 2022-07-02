@@ -2,18 +2,14 @@ import {
 	App,
 	MarkdownView,
 	normalizePath,
-	TFolder,
-	Modal,
 	Notice,
 	Plugin,
 	PluginSettingTab,
 	Setting,
 	TFile,
+	ReferenceCache,
 } from "obsidian";
 import * as path from "path";
-import { text } from "stream/consumers";
-import { fileURLToPath } from "url";
-// Remember to rename these classes and interfaces!
 
 interface CompileNotesSettings {
 	compileToFolder: string;
@@ -21,6 +17,7 @@ interface CompileNotesSettings {
 	overwriteExistingFile: boolean;
 	removeLinks: boolean;
 	notesFolder: string;
+	removeFrontmatter: boolean;
 }
 
 const DEFAULT_SETTINGS: CompileNotesSettings = {
@@ -29,109 +26,14 @@ const DEFAULT_SETTINGS: CompileNotesSettings = {
 	overwriteExistingFile: true,
 	removeLinks: true,
 	notesFolder: "notes",
+	removeFrontmatter: true,
 };
 
 export default class CompileNotes extends Plugin {
 	settings: CompileNotesSettings;
 
-	folder: TFolder;
-	newDirectoryPath: string;
-
 	async onload() {
 		await this.loadSettings();
-
-		let rootNotePath = "";
-		const regexWikiGlobal = /\[\[([^\]]*)\]\]/g;
-
-		const getNoteFileName = (noteLink: string) => {
-			const regexWiki = /\[\[([^\]]+)\]\]/;
-			let linkText = noteLink.match(regexWiki)[1];
-			let linkFilename = linkText + ".md";
-			let notesFolder = this.settings.notesFolder;
-			return path.join(rootNotePath, notesFolder, linkFilename);
-		};
-		const getRootNoteText = () => {
-			const rootNoteFile = this.app.workspace.getActiveFile();
-			rootNotePath = rootNoteFile.parent.path;
-			return this.app.vault.read(rootNoteFile);
-		};
-		const replaceLinkWithContent = async (
-			link: string,
-			parentContent: string
-		) => {
-			console.log("level3Item = " + link);
-			let fullLinkFilename = getNoteFileName(link);
-
-			let linkedNoteText = await this.app.vault.adapter.read(
-				fullLinkFilename
-			);
-			return parentContent.replace(link, linkedNoteText);
-		};
-		const loadNotes = async (
-			linkMatches: RegExpMatchArray,
-			parentNoteText: string
-		): Promise<string> => {
-			let loadedText = parentNoteText;
-			for (const item of linkMatches) {
-				try {
-					console.log("item = " + item);
-					let fullLinkFilename = getNoteFileName(item);
-
-					let linkedNoteText = await this.app.vault.adapter.read(
-						fullLinkFilename
-					);
-
-					loadedText = loadedText.replace(item, linkedNoteText);
-					// scan text of current file for links
-					let childLinkMatches =
-						linkedNoteText.match(regexWikiGlobal);
-					// if has linkMatches -> loop through linkMatches
-					if (childLinkMatches) {
-						// loop through linkMatches
-						for (const childItem of childLinkMatches) {
-							try {
-								console.log("childItem = " + childItem);
-								loadedText = await replaceLinkWithContent(
-									childItem,
-									loadedText
-								);
-								let fullLinkFilename =
-									getNoteFileName(childItem);
-
-								let linkedNoteText =
-									await this.app.vault.adapter.read(
-										fullLinkFilename
-									);
-								loadedText = loadedText.replace(
-									childItem,
-									linkedNoteText
-								);
-								let level3Matches =
-									linkedNoteText.match(regexWikiGlobal);
-								if (level3Matches) {
-									for (const level3Item of level3Matches) {
-										try {
-											loadedText =
-												await replaceLinkWithContent(
-													level3Item,
-													loadedText
-												);
-										} catch (e) {}
-									}
-								}
-							} catch (e) {
-								console.log("missing file: " + e);
-							}
-						}
-					} else {
-						console.log("no links in " + fullLinkFilename);
-					}
-				} catch (e) {
-					console.log("missing file: " + e);
-				}
-			}
-			return loadedText;
-		};
 
 		this.addCommand({
 			id: "compile-notes-testing",
@@ -140,160 +42,225 @@ export default class CompileNotes extends Plugin {
 				// Conditions to check
 				const markdownView =
 					this.app.workspace.getActiveViewOfType(MarkdownView);
+
 				if (markdownView) {
 					if (!checking) {
-						const noteFile = this.app.workspace.getActiveFile();
-						let cachedMedataData =
-							this.app.metadataCache.getFileCache(noteFile);
-						console.log(
-							"cachedMetaData links = " + cachedMedataData.links.length
-						);
-		
-						cachedMedataData.links.forEach((element) => {
-							console.log("each link displayText" + element.displayText);
-							console.log("each link link" + element.link);
-							console.log("each link position.start" + element.position.start);
-							console.log(
-								"each link position.end" + element.position.end
-							);
-	
-						});
+						const sourceFile = this.app.workspace.getActiveFile();
+						const sourcFilePath = sourceFile.parent.path;
+						const vault = this.app.vault;
+						const app = this.app;
+						const settings = this.settings;
+						const fileAdapter = vault.adapter;
 
-						console.log(
-							"cachedMetaData embeds = " + cachedMedataData.embeds.length
-						);
-						cachedMedataData.embeds.forEach((element) => {
-							console.log(
-								"each embed displayText" + element.displayText
-							);
-							console.log("each embed link" + element.link);
-							console.log(
-								"each embed position.start" + element.position.start.line
-							);
-							console.log(
-								"each embed position.end" +
-									element.position.end.line
-							);
-						});
-					}
-					return true;
-				}
-			},
-		});
+						async function compileNotes() {
+							const links = await getLinks(sourceFile);
 
-		this.addCommand({
-			id: "compile-notes-into-one",
-			name: "Compile notes to one file",
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView =
-					this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					if (!checking) {
-						const compileNotes = async () => {
-							let totalText = "";
-							// extracted the text from current note
-							let noteText = await getRootNoteText();
-							// scan text of current file for links
-							let linkMatches = noteText.match(regexWikiGlobal);
-							if (linkMatches) {
-								// loop through linkMatches
-								let loadedNotes = await loadNotes(
-									linkMatches,
-									noteText
+							let contents = await getFileContent(
+								sourceFile as TFile
+							);
+
+							contents = await replaceLinkContent(
+								links,
+								contents
+							);
+							saveToNewFile(contents).then();
+						}
+
+						async function saveToNewFile(contents: string) {
+							// console.log("***: " + contents);
+							let directory = path.join(
+								vault.getRoot().path,
+								settings.compileToFolder
+							);
+							const directoryExists = await fileAdapter.exists(
+								normalizePath(directory)
+							);
+
+							if (!directoryExists) {
+								return fileAdapter.mkdir(
+									normalizePath(directory)
 								);
-								totalText += loadedNotes;
-							} else {
-								// if called on a note without links - content will just be written to manuscript file
-								// actually ask if that is what yo want - to avoid accidentally overwriting an existing manuscript
-								// file
-								console.log("no links in here");
-								totalText += noteText;
 							}
-							return totalText;
-						};
-						compileNotes().then((notesToSave) => {
-							// remove all links
-							let manuscript = "";
-							if (this.settings.removeLinks) {
-								console.log("removelinks");
-								manuscript = this.removeAllLinks(notesToSave);
-							} else {
-								manuscript = notesToSave;
+
+							try {
+								const filename = settings.compileToFilename;
+								const filePath = path.join(directory, filename);
+								const fileExists = await fileAdapter.exists(
+									filePath
+								);
+								if (fileExists) {
+									console.log(filePath);
+									let file = vault.getAbstractFileByPath(
+										normalizePath(filePath)
+									);
+									if (file instanceof TFile) {
+										vault.trash(file, true);
+										new Notice(
+											"File: " +
+												filename +
+												" has been trashed"
+										);
+									} else {
+										new Notice("can't find file");
+									}
+								}
+
+								await vault.create(filePath, contents);
+								new Notice(
+									"New " + filename + " has been created"
+								);
+							} catch (error) {
+								new Notice(error.toString());
 							}
-							// write to manuscript
-							console.log(
-								"Notes to save to manuscript " + manuscript
-							);
-							this.createNewNote(manuscript);
-						});
+						}
+
+						async function getFileName(noteName: string) {
+							let fileName = noteName + ".md";
+							if (settings.notesFolder.length > 0) {
+								fileName = path.join(
+									sourcFilePath,
+									settings.notesFolder,
+									fileName
+								);
+							} else {
+								fileName = path.join(sourcFilePath, fileName);
+							}
+							return normalizePath(fileName);
+						}
+
+						async function replaceLinkContent(
+							links: ReferenceCache[],
+							contents: string
+						) {
+							for (const link of links) {
+								let fileName = await getFileName(
+									link.displayText
+								);
+
+								let linkFile =
+									vault.getAbstractFileByPath(fileName);
+
+								let fileContent = await getFileContent(
+									linkFile as TFile
+								);
+								if (fileContent != null) {
+									contents = contents.replace(
+										link.original,
+										fileContent
+									);
+									const childLinks = await getLinks(
+										linkFile as TFile
+									);
+
+									if (childLinks != null) {
+										contents = await replaceLinkContent(
+											childLinks,
+											contents
+										);
+									}
+								} else {
+									console.log(
+										"no file for this link " + link.original
+									);
+									if (settings.removeLinks) {
+										contents = contents.replace(
+											link.original,
+											""
+										);
+									}
+								}
+							}
+							return contents;
+						}
+
+						async function getLinks(file: TFile) {
+							// read either links or embeds and return
+							let metadataCache =
+								app.metadataCache.getFileCache(file);
+							let links = metadataCache.links;
+							let embeds = metadataCache.embeds;
+							if (links != null && embeds != null) {
+								return links.concat(embeds);
+							} else {
+								if (links != null) {
+									return links;
+								}
+								if (embeds != null) {
+									return embeds;
+								}
+							}
+						}
+
+						function replaceAtIndex(
+							_string: string,
+							_index: number,
+							_indexEnd: number,
+							_newValue: string
+						) {
+							if (_index > _string.length - 1) {
+								return _string;
+							} else {
+								return (
+									_string.substring(0, _index) +
+									_newValue +
+									_string.substring(_indexEnd)
+								);
+							}
+						}
+
+						async function getFileContent(
+							file: TFile
+						): Promise<string | null> {
+							try {
+								// read from the file
+								let fileContent = await vault.read(file);
+								let frontmatterData =
+									app.metadataCache.getFileCache(
+										file
+									).frontmatter;
+								if (frontmatterData != null) {
+									let frontmatterStart =
+										frontmatterData.position.start.offset;
+									let frontmatterEnd =
+										frontmatterData.position.end.offset;
+									console.log(
+										"frontmatter " +
+											frontmatterStart +
+											" frontmatterEnd " +
+											frontmatterEnd
+									);
+									console.log(
+										"meta data = " +
+											fileContent.substring(
+												frontmatterStart,
+												frontmatterEnd
+											)
+									);
+									if (settings.removeFrontmatter) {
+										fileContent = replaceAtIndex(
+											fileContent,
+											frontmatterStart,
+											frontmatterEnd,
+											""
+										);
+									}
+								}
+
+								return fileContent;
+							} catch (e) {
+								console.log("error in getFileContent " + e);
+								return null;
+							}
+						}
+
+						compileNotes();
 					}
-					console.log("all done");
-					// This command will only show up in Command Palette when the check function returns true
 					return true;
 				}
 			},
 		});
 
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
-
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, "click", (evt: MouseEvent) => {
-			console.log("click", evt);
-		});
-
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(
-			window.setInterval(() => console.log("setInterval"), 5 * 60 * 1000)
-		);
-	}
-
-	/**
-	 * Creates a directory (recursive) if it does not already exist.
-	 * This is a helper function that includes a workaround for a bug in the
-	 * Obsidian mobile app.
-	 */
-	private async createDirectory(dir: string): Promise<void> {
-		const { vault } = this.app;
-		const { adapter } = vault;
-		const root = vault.getRoot().path;
-		const directoryPath = path.join(this.folder.path, dir);
-		const directoryExists = await adapter.exists(directoryPath);
-
-		if (!directoryExists) {
-			return adapter.mkdir(normalizePath(directoryPath));
-		}
-	}
-
-	async createNewNote(input: string): Promise<void> {
-		this.folder = this.app.vault.getRoot();
-		this.newDirectoryPath = this.settings.compileToFolder;
-		const { vault } = this.app;
-		const { adapter } = vault;
-		const filename = this.settings.compileToFilename;
-		const filePath = path.join(this.newDirectoryPath, filename);
-
-		try {
-			const fileExists = await adapter.exists(filePath);
-			if (fileExists) {
-				console.log(filePath);
-				let file = vault.getAbstractFileByPath(normalizePath(filePath));
-				if (file instanceof TFile) {
-					vault.trash(file, true);
-					new Notice("File: " + filename + " has been trashed");
-				} else {
-					new Notice("can't find file");
-				}
-			}
-
-			await this.createDirectory(this.newDirectoryPath);
-			await vault.create(filePath, input);
-			new Notice("New " + filename + " has been created");
-		} catch (error) {
-			new Notice(error.toString());
-		}
+		this.addSettingTab(new CompileNotesSettingTab(this.app, this));
 	}
 
 	onunload() {}
@@ -309,30 +276,9 @@ export default class CompileNotes extends Plugin {
 	async saveSettings() {
 		await this.saveData(this.settings);
 	}
-
-	removeAllLinks(textToScan: string): string {
-		const regexWikiGlobal = /\[\[([^\]]*)\]\]/g;
-		return textToScan.replace(regexWikiGlobal, "");
-	}
 }
 
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
-	}
-
-	onOpen() {
-		const { contentEl } = this;
-		contentEl.setText("Woah!");
-	}
-
-	onClose() {
-		const { contentEl } = this;
-		contentEl.empty();
-	}
-}
-
-class SampleSettingTab extends PluginSettingTab {
+class CompileNotesSettingTab extends PluginSettingTab {
 	plugin: CompileNotes;
 
 	constructor(app: App, plugin: CompileNotes) {
@@ -405,12 +351,12 @@ class SampleSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName("Do not show links")
+			.setName("Remove links")
 			.setDesc(
 				"When turned on, your " +
 					this.plugin.settings.compileToFilename +
-					" will not contain any of the links." +
-					"\nThis setting assumes that you have an end of line (\\n) after your link. If you do not, your link will not be removed."
+					" will not contain any wiki links or transclude links." +
+					"It will remove any links that point to notes that have not been created yet."
 			)
 			.addToggle((toggle) =>
 				toggle
@@ -421,19 +367,20 @@ class SampleSettingTab extends PluginSettingTab {
 					})
 			);
 
-		// // 						if( !this.plugin.settings.overwriteExistingFile) {
-		// // 							new Setting(containerEl)
-		// //   .setName('Number of repetitions')
-		// //   .setDesc('Here you can set your default number for repetition reminders')
-		// //   .setValue(this.plugin.settings.repetitions) // <-- Add me!
-		// //   .addDropdown(dropDown => {
-		// //   	dropDown.addOption('1', '1 Repetition');
-		// //   	dropDown.addOption('2', '2 Repetitions');
-		// //   	dropDown.onChange(async (value) =>	{
-		// //   		this.plugin.settings.repetitions = value;
-		// //   		await this.plugin.saveSettings();
-		// //   	});
-		//   });
-		// }
+		new Setting(containerEl)
+			.setName("Remove Frontmatter / metadata")
+			.setDesc(
+				"When turned on, your " +
+					this.plugin.settings.compileToFilename +
+					" will not contain any yaml metadata or frontmatter."
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.removeFrontmatter)
+					.onChange((value) => {
+						this.plugin.settings.removeFrontmatter = value;
+						this.plugin.saveData(this.plugin.settings);
+					})
+			);
 	}
 }
