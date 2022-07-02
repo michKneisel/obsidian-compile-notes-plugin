@@ -22,6 +22,10 @@ When turned on, your saved compile notes file will not contain any of the links.
 ### Remove metadata / frontmatter
 When turned on, your saved compile notes file will not contain any frontmatter or yaml metadata, if you want to preserve it in your complied note, you need to toggle this setting off. 
 
+## Manually installing the plugin
+Create a folder in your vault: VaultFolder/.obsidian/plugins/obsidian-compile-notes-plugin/
+Copy over main.js, manifest.json into that folder.
+
 **Note:**
 - Only supports wiki links and transclude links - no markdown link support, they will remain in the document.
 - Currently all previous "compiled note files" (Manifest.md) will be moved to the system trash and a new file with the same name, as specified in the settings will be created.
