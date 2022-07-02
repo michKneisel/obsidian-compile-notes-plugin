@@ -8,7 +8,12 @@ The plugin will analyse the text of the current note you are in when you call th
 ![[Note 3]]
 ```
 This will produce a file with only the contents of current file and the contents of the notes the links pointed to. If you include headings and other content, in amongst your links, they will be preserved.
-	@@ -19,79 +20,16 @@ Specify the name of the file you would like the compiled notes note to be called
+
+## Settings
+### Folder
+You can create or let the plugin create the folder you would like your compiled notes to be stored. Default: \Manifest
+### Filename
+Specify the name of the file you would like the compiled notes note to be called. Default: Manifest.md
 ### Overwrite Existing File
 When turned on, the file will be trashed to the system recycle bin. 
 NOTE: currently your saved compile notes file will always be overwritten.
