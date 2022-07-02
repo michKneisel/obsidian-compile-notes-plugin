@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-compile-notes-plugin",
-	"version": "1.0.1",
+	"version": "0.0.1",
 	"description": "Compile multiple notes into one file by listing links to notes.",
 	"main": "main.js",
 	"scripts": {

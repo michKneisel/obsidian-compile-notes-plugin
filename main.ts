@@ -36,8 +36,8 @@ export default class CompileNotes extends Plugin {
 		await this.loadSettings();
 
 		this.addCommand({
-			id: "compile-notes-testing",
-			name: "Compile notes testing",
+			id: "compile-notes-to-manuscript",
+			name: "Compile notes into one",
 			checkCallback: (checking: boolean) => {
 				// Conditions to check
 				const markdownView =
