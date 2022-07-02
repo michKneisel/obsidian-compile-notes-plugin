@@ -21,7 +21,7 @@ When turned on, your saved compile notes file will not contain any frontmatter o
 - Only supports wiki links and transclude links - no markdown link support, they will remain in the document.
 - Currently all previous "compiled note files" (Manifest.md) will be moved to the system trash and a new file with the same name, as specified in the settings will be created.
 - The plugin is recursive, it will pull content from child notes into your main document.
-- I have no idea if this plugin supports anything other than Windows 10. Let me know in the issues.
+- I have no idea if this plugin supports anything other than Windows 10. Let me know in the discussion.
 - This plugin will not overwite any of your data, it only reads your notes and writes to a new file. If it fails, it just won't write a new file and you'll have to go old school copy and paste.
 - I am a software developer and I'm doing a masters dissertation in the humanities, I wrote this plugin for myself.
 - I use pandoc cli to then convert the Manuscript.md file into Ms Word because the Humanities still operate in the dark ages. 
