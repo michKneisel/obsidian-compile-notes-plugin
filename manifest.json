@@ -1,10 +1,10 @@
 {
 	"id": "obsidian-compile-notes-plugin",
 	"name": "Compile Notes",
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"minAppVersion": "0.12.0",
-	"description": "Compile multiple notes into one file by listing links to notes.",
+	"description": "First release of my shiny new plugin",
 	"author": "Michelle Kneisel",
-	"authorUrl": "",
+	"authorUrl": "https://github.com/michKneisel/obsidian-compile-notes-plugin/actions",
 	"isDesktopOnly": false
 }
