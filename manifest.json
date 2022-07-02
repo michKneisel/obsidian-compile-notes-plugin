@@ -1,7 +1,7 @@
 {
 	"id": "obsidian-compile-notes-plugin",
 	"name": "Compile Notes",
-	"version": "0.0.5",
+	"version": "0.0.6",
 	"minAppVersion": "0.12.0",
 	"description": "First release of my shiny new plugin",
 	"author": "Michelle Kneisel",
