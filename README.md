@@ -26,8 +26,9 @@ When turned on, your saved compile notes file will not contain any frontmatter o
 On the panel on the right, you will see a section called Releases, click on latest, download the zip file: obsidian-compile-notes-plugin-[latestversionnumber].zip and extract it in 
 your vault: VaultFolder/.obsidian/plugins/ folder.
 it will add a folder:/obsidian-compile-notes-plugin/ with the files main.js, manifest.json into that folder.
+Then remember to go to community plugins in your obsidian settings and enable the plugin and change any of the settings you need to.
 
-**Note:**
+## Notes
 - Only supports wiki links and transclude links - no markdown link support, they will remain in the document.
 - Currently all previous "compiled note files" (Manifest.md) will be moved to the system trash and a new file with the same name, as specified in the settings will be created.
 - The plugin is recursive, it will pull content from child notes into your main document.
