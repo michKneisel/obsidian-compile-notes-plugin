@@ -1,5 +1,3 @@
-> **This plugin may no longer be compatible with Obsidian - I've seen errors but do not have time to investigate right now.**
-
 This plugin assists with longform writing. You can convert multiple notes by linking to them in another file and then using the plugins Compile Notes command to export them to a single file.
 
 ## How it works
